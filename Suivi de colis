@@ -1,0 +1,164 @@
+const express = require("express");
+const bodyParser = require("body-parser");
+const app = express();
+const PORT = process.env.PORT || 3000;
+
+app.use(bodyParser.json());
+
+// Base de datos
+let paquetes = {
+  "ABC123": { estado: "En tránsito", ubicacion: "París" }
+};
+
+// ================= CLIENT =================
+app.get("/", (req, res) => {
+  res.send(`
+  <!DOCTYPE html>
+  <html lang="es">
+  <head>
+  <meta charset="UTF-8">
+  <title>Seguimiento</title>
+  <style>
+  body { font-family: Arial; background:#f5f5f5; text-align:center; }
+  header { background:#ffcc00; padding:20px; font-weight:bold; }
+  .box { background:white; padding:20px; margin:50px auto; width:300px; border-radius:10px; }
+  input { padding:10px; width:80%; }
+  button { padding:10px; background:black; color:white; border:none; }
+  </style>
+  </head>
+
+  <body>
+  <header>📦 Seguimiento de paquete</header>
+
+  <div class="box">
+    <input id="code" placeholder="Código">
+    <br><br>
+    <button onclick="track()">Buscar</button>
+    <p id="result"></p>
+  </div>
+
+  <script>
+  async function track(){
+    let code = document.getElementById("code").value;
+    let res = await fetch("/track/"+code);
+    let data = await res.json();
+
+    if(data.error){
+      result.innerText="❌ Código no encontrado";
+    } else {
+      result.innerText="Estado: "+data.estado+" | "+data.ubicacion;
+
+      let phone="229XXXXXXXX";
+      let msg="Paquete "+code+": "+data.estado+" en "+data.ubicacion;
+      window.open("https://wa.me/"+phone+"?text="+encodeURIComponent(msg));
+    }
+  }
+  </script>
+
+  </body>
+  </html>
+  `);
+});
+
+// ================= ADMIN =================
+app.get("/admin", (req, res) => {
+  res.send(`
+  <!DOCTYPE html>
+  <html lang="es">
+  <head>
+  <meta charset="UTF-8">
+  <title>Admin</title>
+  <style>
+  body { font-family: Arial; background:#eee; text-align:center; }
+  .box { background:white; padding:20px; margin:50px auto; width:300px; }
+  input { margin:5px; padding:10px; width:80%; }
+  button { padding:10px; background:black; color:white; border:none; }
+  </style>
+  </head>
+
+  <body>
+  <h2>🔐 Panel Admin</h2>
+
+  <div class="box">
+    <input id="code" placeholder="Código"><br>
+    <input id="estado" placeholder="Estado"><br>
+    <input id="ubicacion" placeholder="Ubicación"><br>
+
+    <button onclick="add()">Agregar</button>
+    <button onclick="update()">Actualizar</button>
+
+    <p id="msg"></p>
+  </div>
+
+  <script>
+  async function add(){
+    let data={
+      code:code.value,
+      estado:estado.value,
+      ubicacion:ubicacion.value
+    };
+
+    await fetch("/add",{
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify(data)
+    });
+
+    msg.innerText="✅ Agregado";
+  }
+
+  async function update(){
+    let data={
+      code:code.value,
+      estado:estado.value,
+      ubicacion:ubicacion.value
+    };
+
+    let res=await fetch("/update",{
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify(data)
+    });
+
+    let r=await res.json();
+
+    if(r.error){
+      msg.innerText="❌ No existe";
+    } else {
+      msg.innerText="🔄 Actualizado";
+    }
+  }
+  </script>
+
+  </body>
+  </html>
+  `);
+});
+
+// ================= API =================
+app.get("/track/:code", (req, res) => {
+  const code = req.params.code.toUpperCase();
+  if (paquetes[code]) {
+    res.json(paquetes[code]);
+  } else {
+    res.json({ error: "No encontrado" });
+  }
+});
+
+app.post("/add", (req, res) => {
+  const { code, estado, ubicacion } = req.body;
+  paquetes[code.toUpperCase()] = { estado, ubicacion };
+  res.json({ ok: true });
+});
+
+app.post("/update", (req, res) => {
+  const { code, estado, ubicacion } = req.body;
+  if (paquetes[code.toUpperCase()]) {
+    paquetes[code.toUpperCase()] = { estado, ubicacion };
+    res.json({ ok: true });
+  } else {
+    res.json({ error: true });
+  }
+});
+
+app.listen(PORT, () => console.log("Servidor listo 🚀"));
